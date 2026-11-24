@@ -77,10 +77,25 @@
     return "data:image/svg+xml," + encodeURIComponent(svg);
   }
   function cardImg(card) {
-    // 优先用内联 base64（跟随代码同步上云，无需 images/ 文件夹；且不污染 canvas）
+    // 独立图片文件（images/cards/*.webp），支持浏览器懒加载与缓存；
+    // 兼容旧的内联 base64（若某张图仍只在 CARD_IMG_DATA 中）；无图则用占位图。
     if (card.img && window.CARD_IMG_DATA && window.CARD_IMG_DATA[card.img]) return window.CARD_IMG_DATA[card.img];
     return card.img ? card.img : placeholder(card);
   }
+
+  /* ---------- 卡片轮廓占位图（图片加载完成前显示，与卡面同尺寸） ---------- */
+  var CARD_PH_SVG = (function () {
+    var svg =
+      "<svg xmlns='http://www.w3.org/2000/svg' width='460' height='670' viewBox='0 0 460 670'>" +
+        "<rect width='460' height='670' rx='20' fill='#FBEAF0'/>" +
+        "<rect x='20' y='20' width='420' height='630' rx='14' fill='none' stroke='#ED93B1' stroke-width='3'/>" +
+        "<rect x='46' y='46' width='104' height='30' rx='8' fill='none' stroke='#ED93B1' stroke-width='3'/>" +
+        "<rect x='46' y='92' width='368' height='360' rx='12' fill='#F4C0D1'/>" +
+        "<rect x='46' y='474' width='368' height='18' rx='9' fill='#ED93B1'/>" +
+        "<rect x='46' y='508' width='230' height='18' rx='9' fill='#ED93B1'/>" +
+      "</svg>";
+    return "data:image/svg+xml," + encodeURIComponent(svg);
+  })();
 
   /* ---------- 筛选面板（按 FILTER_CONFIG 自动生成） ---------- */
   function buildFilterPanel() {
@@ -223,12 +238,19 @@
       var total = cardTotal(card.id);
       html +=
         '<article class="card-item' + (isGot ? " collected" : "") + '" data-id="' + escapeHtml(card.id) + '" tabindex="0" role="button" aria-pressed="' + isGot + '" title="' + escapeHtml(card.name) + '">' +
-          '<img class="card-img" src="' + cardImg(card) + '" alt="' + escapeHtml(card.name) + '" loading="lazy">' +
+          '<div class="card-media">' +
+            '<div class="card-ph" style="background-image:url(\'' + CARD_PH_SVG + '\')"></div>' +
+            '<img class="card-img" src="' + cardImg(card) + '" alt="' + escapeHtml(card.name) + '" loading="lazy" onload="this.classList.add(\'img-loaded\')">' +
+          "</div>" +
           (total > 0 ? '<span class="count-badge">' + formatCountHtml(total) + "</span>" : "") +
           '<button type="button" class="count-dot" data-id="' + escapeHtml(card.id) + '" aria-label="卡片计数">' + DOT_SVG + "</button>" +
         "</article>";
     });
     grid.innerHTML = html;
+    // 图片淡入兜底：缓存命中时 load 可能在绑定前就完成，这里补一次检查
+    grid.querySelectorAll("img.card-img").forEach(function (im) {
+      if (im.complete && im.naturalWidth > 0) im.classList.add("img-loaded");
+    });
     emptyHint.hidden = list.length !== 0;
 
     // 统计（按当前系列分组计算收集进度）
@@ -745,6 +767,7 @@
               "<p class=\"contact-title\">联系方式：</p>" +
               "<p class=\"contact-line\">邮箱：1294768994@qq.com <button type=\"button\" class=\"contact-copy\" data-copy=\"1294768994@qq.com\">复制</button></p>" +
               "<p class=\"contact-line\">qq：1294768994 <button type=\"button\" class=\"contact-copy\" data-copy=\"1294768994\">复制</button></p>" +
+              "<p class=\"contact-line\">小红书号：336680952 <button type=\"button\" class=\"contact-copy\" data-copy=\"336680952\">复制</button></p>" +
             "</div>"
     },
     howto: {
@@ -781,6 +804,10 @@
     changelog: {
       title: "更新公告",
       html: "<div class=\"changelog-item\">" +
+        "<div class=\"changelog-date\">2026 / 11 / 24</div>" +
+        "<p>更新了占位符逻辑和优化了加载速度</p>" +
+        "</div>" +
+        "<div class=\"changelog-item\">" +
         "<div class=\"changelog-date\">2026 / 11 / 17</div>" +
         "<p>更新了统计方式的逻辑。</p>" +
         "</div>"
@@ -1023,7 +1050,8 @@
     // 列数随数量自适应（卡面偏瘦长，列数不宜过多）
     var cols = n <= 2 ? n : (n <= 6 ? 3 : (n <= 12 ? 4 : (n <= 30 ? 5 : 6)));
     var CW = 210, CH = Math.round(CW * 670 / 460);
-    var GAP = 12, PAD = 24, HEADER_H = 74, GROUP_H = 38, RADIUS = 12;
+    var GAP = 12, PAD = 24, HEADER_H = 114, GROUP_H = 38, RADIUS = 12;
+    var SITE_URL = "https://aikatsuencore-cn-collection.github.io";
 
     // 按系列分组（保持 CARDS 中出现顺序）
     var groups = [];
@@ -1051,7 +1079,12 @@
       var rowsUsed = Math.ceil(cnt / cols);
       contentH += GROUP_H + GAP + rowsUsed * CH + (rowsUsed - 1) * GAP + GAP * 2;
     });
-    var W = gridW, H = PAD + HEADER_H + contentH + PAD;
+    // 网址固定 24px 显示：画布至少撑宽到能完整放下网址；卡面内容仍靠左，不受画布变宽影响
+    var measureCtx = document.createElement("canvas").getContext("2d");
+    measureCtx.font = "24px sans-serif";
+    var urlTextW = measureCtx.measureText(SITE_URL).width;
+    var W = Math.max(gridW, Math.ceil(urlTextW) + PAD * 2);
+    var H = PAD + HEADER_H + contentH + PAD;
 
     var scale = 2;
     if (H * scale > 16000) scale = 16000 / H;   // 防止超出画布高度上限
@@ -1068,15 +1101,19 @@
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
-    // 标题区
+    // 标题区：主标题 → 网址 → 已点亮数量
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
     ctx.fillStyle = "#d63384";
     ctx.font = "bold 30px sans-serif";
-    ctx.fillText("偶像活动！安可 收集册", PAD, PAD + HEADER_H / 2 - 12);
+    ctx.fillText("偶像活动！安可 收集册", PAD, PAD + 20);
+    // 网址：固定 24px，画布已撑宽保证完整显示
     ctx.fillStyle = "#a05a86";
-    ctx.font = "15px sans-serif";
-    ctx.fillText("已点亮 " + n + " 张卡面", PAD, PAD + HEADER_H / 2 + 16);
+    ctx.font = "24px sans-serif";
+    ctx.fillText(SITE_URL, PAD, PAD + 56);
+    ctx.fillStyle = "#a05a86";
+    ctx.font = "20px sans-serif";
+    ctx.fillText("已点亮 " + n + " 张卡面", PAD, PAD + 90);
 
     function roundImg(img, x, y, w, h, r) {
       ctx.save();
