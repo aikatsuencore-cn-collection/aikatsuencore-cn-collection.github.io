@@ -762,6 +762,7 @@ header h1 .sub {
   border-top: 1px solid var(--pink-soft);  /* 与每条记录拉开视觉间距 */
 }
 .count-summary b { color: var(--pink-deep); font-size: 1.2rem; margin: 0 3px; }
+.count-summary.no-divider { border-top: none; }
 
 /* 详细版：新增按钮 / 向导 / 横向进度记录 */
 .add-card-btn {
@@ -827,13 +828,10 @@ header h1 .sub {
 .record-rail {
   margin-top: 10px; display: flex; flex-direction: column; gap: 10px;
 }
-/* 账本版：≥3 条时整个列表可下滑（底部渐隐遮罩已按要求移除） */
+/* 账本版：进度列表完整展开，统一由外层 .count-modal-right 滚动
+ * 这样在右侧非卡面区任意位置滑动都能上下滚动进度，避免嵌套滚动导致列表溢出弹窗 */
 .record-rail.is-scrollable {
   position: relative;
-  max-height: 300px;       /* 提升内部滚动上限：box-sizing:border-box 下原 220px 被 96px 底部留白吃掉，仅剩 ~124px 可见 → 现在约可露出 2.5~3 条记录 */
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 16px;    /* 仅留少量呼吸空间，不再预留合计栏（合计栏为独立 sticky 元素，不会遮挡列表） */
 }
 .record-empty { color: var(--text-sub); font-size: 0.82rem; padding: 8px 0; }
 .record-card {
@@ -909,11 +907,25 @@ header h1 .sub {
 .mode-opts-row2 { margin-top: 16px; }
 .mode-opts-row2 .mode-opt { flex: none; min-width: 140px; }
 
-/* 响应式：窄屏时弹窗上下堆叠 */
+/* 响应式：窄屏时弹窗上下堆叠，卡面区固定占 40%，进度区占 60% */
 @media (max-width: 700px) {
-  .count-modal { flex-direction: column; }
-  .count-modal-left { flex: none; width: 100%; }
-  .count-big-img { max-width: 220px; margin: 0 auto; }
+  .count-modal { flex-direction: column; height: min(88vh, 760px); }
+  .count-modal-left {
+    flex: 0 0 40%; width: 100%; min-height: 0;
+    padding: 16px 18px; box-sizing: border-box;
+  }
+  .count-big-wrap {
+    flex: 1 1 auto; min-height: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .count-big-img {
+    width: auto; max-width: 100%; max-height: 100%;
+    object-fit: contain; margin: 0;
+  }
+  .count-big-name { margin-top: 8px; flex: 0 0 auto; }
+  .count-modal-right { flex: 1 1 60%; min-height: 0; overflow-y: auto; padding: 18px 18px 0; }
+  /* 合计栏白底铺满到弹窗底边，滚动时不露出下方进度 */
+  .count-summary { margin: 0 -18px; padding: 26px 18px 18px; }
 }
 
 /* 合并重复记录确认弹窗（粉色主题） */
