@@ -586,8 +586,10 @@
       for (var li = 0; li < l.length; li++) html += ledgerCard(l[li], li);
       html += '</div>';
     }
-    /* 右下角合计 */
-    html += '<div class="count-summary">';
+    /* 右下角合计：账本少于 3 笔时不显示上方分割线 */
+    var ledgerN = (readCount(id).ledger || []).length;
+    var noDivider = countMode === "ledger" && ledgerN < 3;
+    html += '<div class="count-summary' + (noDivider ? ' no-divider' : '') + '">';
     if (countMode === "ledger") {
       var tp = (readCount(id).ledger || []).reduce(function (s, en) { return s + (Number(en.price) || 0); }, 0);
       html += '合计 <b id="ledgerTotal">¥' + tp.toFixed(2) + '</b>';
@@ -596,12 +598,7 @@
     }
     html += '</div>';
     countRight.innerHTML = html;
-    /* 详细版（原账本版）：≥3 条时整个列表可下滑 */
-    if (countMode === "ledger") {
-      var rail = countRight.querySelector(".record-rail");
-      var lcnt = (readCount(id).ledger || []).length;
-      if (rail && lcnt > 2) rail.classList.add("is-scrollable");
-    }
+    /* 进度列表完整展开，滚动交给外层 .count-modal-right，任意处滑动都能滚进度 */
   }
 
   /* 计数弹窗内的所有交互（事件委托） */
