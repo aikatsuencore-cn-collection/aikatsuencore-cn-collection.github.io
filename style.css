@@ -48,15 +48,21 @@ header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 10px;
 }
 header h1 {
   margin: 0;
+  margin-right: auto;         /* 把按钮与菜单推到右侧 */
   font-size: 1.25rem;
   letter-spacing: 0.03em;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
   line-height: 1.25;
+  min-width: 0;               /* 窄屏允许标题截断，给菜单让位 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  order: 1;
 }
 header h1 .sub {
   font-size: 0.72rem;
@@ -64,7 +70,7 @@ header h1 .sub {
   opacity: 0.9;
   letter-spacing: 0.08em;
 }
-.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; order: 2; min-width: 0; }
 
 .btn {
   border: none;
@@ -87,6 +93,7 @@ header h1 .sub {
 #navArea { position: relative; z-index: 40; }
 .toggle_btn {
   flex: none;
+  order: 3;                         /* 排在按钮组之后，窄屏时与标题同处第一行 */
   width: 36px;                      /* 宽高相等 → 正圆 */
   height: 36px;
   padding: 0;
@@ -596,10 +603,18 @@ header h1 .sub {
 @media (max-width: 600px) {
   header { padding: 12px 14px 12px 14px; }
   header h1 { font-size: 1.05rem; }
+  header h1 .sub { display: none; }              /* 窄屏隐藏英文副标题，给标题与菜单腾位 */
+  /* 菜单提到标题那一行：标题 order1 → 菜单 order2 → 按钮组 order3 换行到第二行 */
+  .toggle_btn { order: 2; height: 32px; width: 32px; min-width: 32px; padding: 0; }
+  .actions { order: 3; width: 100%; }
   .actions .btn { height: 32px; padding: 0 12px; font-size: 0.78rem; }
   .card-grid.size-large { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .card-grid.size-small { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-  .toggle_btn { height: 32px; min-width: 40px; padding: 0 10px; }
+}
+@media (max-width: 480px) {
+  /* 更窄时按钮一行两个、共两行 */
+  .actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .actions .btn { width: 100%; }
 }
 @media (max-width: 400px) {
   .card-grid.size-large { grid-template-columns: repeat(2, minmax(0, 1fr)); }
