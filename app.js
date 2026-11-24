@@ -586,7 +586,10 @@
       for (var li = 0; li < l.length; li++) html += ledgerCard(l[li], li);
       html += '</div>';
     }
-    /* 右下角合计：账本少于 3 笔时不显示上方分割线 */
+    /* 上方为可滚动内容（按钮/向导/进度），下方合计栏固定铺在弹窗底部，两者不重叠 */
+    var bodyHtml = html;
+    html = "";
+    /* 合计栏：账本少于 3 笔时不显示上方分割线 */
     var ledgerN = (readCount(id).ledger || []).length;
     var noDivider = countMode === "ledger" && ledgerN < 3;
     html += '<div class="count-summary' + (noDivider ? ' no-divider' : '') + '">';
@@ -597,8 +600,8 @@
       html += '合计 <b>' + formatCountHtml(cardTotal(id)) + '</b> 张';
     }
     html += '</div>';
-    countRight.innerHTML = html;
-    /* 进度列表完整展开，滚动交给外层 .count-modal-right，任意处滑动都能滚进度 */
+    countRight.innerHTML = '<div class="count-scroll">' + bodyHtml + '</div>' + html;
+    /* 滚动交给 .count-scroll，合计栏作为独立底行固定，不再随内容滚动 */
   }
 
   /* 计数弹窗内的所有交互（事件委托） */
