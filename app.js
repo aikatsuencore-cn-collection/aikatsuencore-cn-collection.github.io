@@ -1036,8 +1036,12 @@
   function loadImg(src) {
     return new Promise(function (resolve) {
       var im = new Image();
-      im.onload = function () { resolve(im); };
-      im.onerror = function () { resolve(null); };
+      var settled = false;
+      var timer = setTimeout(function () {
+        if (!settled) { settled = true; im.onload = im.onerror = null; resolve(null); }
+      }, 6000);                       // 6 秒还没加载出来就放弃这张，用占位继续，避免永久卡在"正在合成"
+      im.onload = function () { if (settled) return; settled = true; clearTimeout(timer); resolve(im); };
+      im.onerror = function () { if (settled) return; settled = true; clearTimeout(timer); resolve(null); };
       im.src = src;
     });
   }
@@ -1086,8 +1090,14 @@
     var W = Math.max(gridW, Math.ceil(urlTextW) + PAD * 2);
     var H = PAD + HEADER_H + contentH + PAD;
 
+    /* 画布尺寸自适应：手机/微信 WebView 内存小，严格限制边长与总像素，防止导出时闪退 */
+    var isMobile = /Android|iPhone|iPad|iPod|Mobile|MicroMessenger|wechat/i.test(navigator.userAgent);
+    var MAX_SIDE = isMobile ? 3500 : 16000;          // 最大边长（px）
+    var MAX_PIXELS = isMobile ? 8000000 : 260000000; // 总像素上限
     var scale = 2;
-    if (H * scale > 16000) scale = 16000 / H;   // 防止超出画布高度上限
+    scale = Math.min(scale, MAX_SIDE / W, MAX_SIDE / H);
+    scale = Math.min(scale, Math.sqrt(MAX_PIXELS / (W * H)));
+    scale = Math.max(0.3, scale);                    // 保底，避免图太小看不清
     var canvas = document.createElement("canvas");
     canvas.width = Math.round(W * scale);
     canvas.height = Math.round(H * scale);
@@ -1198,16 +1208,32 @@
         y += rowsUsed * CH + (rowsUsed - 1) * GAP + GAP * 2;
       });
 
-      try {
+      function triggerDownload(url, revoke) {
         var a = document.createElement("a");
         a.download = "aikatsu-encore-collected.png";
-        a.href = canvas.toDataURL("image/png");
+        a.href = url;
+        document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
+        if (revoke) setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
         toast("已保存为图片（" + n + " 张已点亮卡面）");
-      } catch (err) {
-        toast("导出失败：若用 file:// 直接打开会被浏览器限制，请用本地服务器访问");
       }
-    }).catch(function () { toast("生成图片失败"); });
+      function fallbackDataURL() {
+        try { triggerDownload(canvas.toDataURL("image/png"), false); }
+        catch (err) { toast("导出失败：图片过大，请减少已点亮卡片后重试"); }
+      }
+      /* 优先用 toBlob（内存友好，避免超大 base64 字符串导致手机闪退），不支持时回退 toDataURL */
+      if (canvas.toBlob) {
+        try {
+          canvas.toBlob(function (blob) {
+            if (blob && blob.size) {
+              try { triggerDownload(URL.createObjectURL(blob), true); }
+              catch (err) { fallbackDataURL(); }
+            } else { fallbackDataURL(); }
+          }, "image/png");
+        } catch (err) { fallbackDataURL(); }
+      } else { fallbackDataURL(); }
+    }).catch(function () { toast("生成图片失败，请重试或减少已点亮卡片"); });
   }
   $("saveImg").addEventListener("click", exportCollectedImage);
 
