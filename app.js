@@ -76,11 +76,13 @@
       "</svg>";
     return "data:image/svg+xml," + encodeURIComponent(svg);
   }
+  var IMAGE_VER = "20261125";
   function cardImg(card) {
     // 独立图片文件（images/cards/*.webp），支持浏览器懒加载与缓存；
     // 兼容旧的内联 base64（若某张图仍只在 CARD_IMG_DATA 中）；无图则用占位图。
     if (card.img && window.CARD_IMG_DATA && window.CARD_IMG_DATA[card.img]) return window.CARD_IMG_DATA[card.img];
-    return card.img ? card.img : placeholder(card);
+    if (!card.img) return placeholder(card);
+    return card.img + (card.img.indexOf("?") >= 0 ? "&" : "?") + "v=" + IMAGE_VER;
   }
 
   /* ---------- 卡片轮廓占位图（图片加载完成前显示，与卡面同尺寸） ---------- */
@@ -221,6 +223,23 @@
     return true;
   }
 
+  /* ---------- 视口内懒加载：只有卡面滚进视口才请求图片 ---------- */
+  var cardImgObserver = null;
+  if ("IntersectionObserver" in window) {
+    cardImgObserver = new IntersectionObserver(function (entries, obs) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        var im = entry.target;
+        var src = im.getAttribute("data-src");
+        if (src && im.getAttribute("src") !== src) {
+          im.src = src;
+          if (im.complete && im.naturalWidth > 0) im.classList.add("img-loaded");
+        }
+        obs.unobserve(im);
+      });
+    }, { root: null, rootMargin: "150px 0px", threshold: 0 });
+  }
+
   /* ---------- 渲染 ---------- */
   function render() {
     var list = getAllCards().filter(match);
@@ -240,17 +259,26 @@
         '<article class="card-item' + (isGot ? " collected" : "") + '" data-id="' + escapeHtml(card.id) + '" tabindex="0" role="button" aria-pressed="' + isGot + '" title="' + escapeHtml(card.name) + '">' +
           '<div class="card-media">' +
             '<div class="card-ph" style="background-image:url(\'' + CARD_PH_SVG + '\')"></div>' +
-            '<img class="card-img" src="' + cardImg(card) + '" alt="' + escapeHtml(card.name) + '" loading="lazy" onload="this.classList.add(\'img-loaded\')">' +
+            '<img class="card-img" data-src="' + cardImg(card) + '" alt="' + escapeHtml(card.name) + '" onload="this.classList.add(\'img-loaded\')">' +
           "</div>" +
           (total > 0 ? '<span class="count-badge">' + formatCountHtml(total) + "</span>" : "") +
           '<button type="button" class="count-dot" data-id="' + escapeHtml(card.id) + '" aria-label="卡片计数">' + DOT_SVG + "</button>" +
         "</article>";
     });
     grid.innerHTML = html;
-    // 图片淡入兜底：缓存命中时 load 可能在绑定前就完成，这里补一次检查
-    grid.querySelectorAll("img.card-img").forEach(function (im) {
-      if (im.complete && im.naturalWidth > 0) im.classList.add("img-loaded");
-    });
+    // 只把进入视口（含 150px 预加载区）的卡面设为 src，避免首屏一次性下载全部图片
+    if (cardImgObserver) {
+      cardImgObserver.disconnect();
+      grid.querySelectorAll("img.card-img[data-src]").forEach(function (im) {
+        cardImgObserver.observe(im);
+      });
+    } else {
+      // 不支持 IntersectionObserver 的旧浏览器：退回原生懒加载
+      grid.querySelectorAll("img.card-img[data-src]").forEach(function (im) {
+        im.loading = "lazy";
+        im.src = im.getAttribute("data-src");
+      });
+    }
     emptyHint.hidden = list.length !== 0;
 
     // 统计（按当前系列分组计算收集进度）
@@ -804,6 +832,15 @@
     changelog: {
       title: "更新公告",
       html: "<div class=\"changelog-item\">" +
+        "<div class=\"changelog-date\">2026 / 11 / 25</div>" +
+        "<p>增加了6张一番赏卡片与2张官店卡片</p>" +
+        "<p>优化了卡面加载速度</p>" +
+        "</div>" +
+        "<div class=\"changelog-item\">" +
+        "<div class=\"changelog-date\">2026 / 11 / 25</div>" +
+        "<p>更新了安卓端保存为图片的错误</p>" +
+        "</div>" +
+        "<div class=\"changelog-item\">" +
         "<div class=\"changelog-date\">2026 / 11 / 24</div>" +
         "<p>更新了占位符逻辑和优化了加载速度</p>" +
         "</div>" +
